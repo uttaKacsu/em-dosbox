@@ -96,8 +96,6 @@ def run_packager():
 
     if 'PYTHON' in globals():
         python_path = PYTHON
-    elif sys.version_info.major != 2:
-        python_path = 'python2' # Emscripten requires Python 2
     else:
         python_path = sys.executable
 

@@ -625,9 +625,9 @@ esac
 AH_TEMPLATE([EMTERPRETER_SYNC],[Compile for use with Emscripten emterpreter sync.])
 AC_ARG_ENABLE(
   [sync],
-  [AC_HELP_STRING([--disable-sync],
-    [Do not use Emscripten emterpreter sync])],
-  [], [enable_sync=yes])
+  [AC_HELP_STRING([--enable-sync],
+    [Use Emscripten emterpreter sync (depreciated)])],
+  [], [enable_sync=no])
 AM_CONDITIONAL([EMTERPRETER], [test "x$enable_sync" != "xno"])
 
 AC_ARG_ENABLE(
