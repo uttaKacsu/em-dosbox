@@ -84,19 +84,19 @@ AM_PATH_SDL(:,
 LIBS="$LIBS $SDL_LIBS"
 CPPFLAGS="$CPPFLAGS $SDL_CFLAGS"
 
-dnl Check if SDL is 1.2.x, 2.0.y
-AC_MSG_CHECKING([SDL version only being 1.2.x or 2.0.x])
+dnl Check if SDL is 1.2.x, 2.y.z
+AC_MSG_CHECKING([SDL version only being 1.2.x or 2.y.z])
 AC_COMPILE_IFELSE([AC_LANG_SOURCE([
 #include "SDL.h"
 void blah(){
-#if !((SDL_MAJOR_VERSION == 1) && (SDL_MINOR_VERSION == 2)) && !((SDL_MAJOR_VERSION == 2) && (SDL_MINOR_VERSION == 0))
-#error "Only SDL 1.2 and 2.0 supported"
+#if !((SDL_MAJOR_VERSION == 1) && (SDL_MINOR_VERSION == 2)) && !(SDL_MAJOR_VERSION == 2)
+#error "Only SDL 1.2 and 2 supported"
 #endif
 ;
 }
 ])],AC_MSG_RESULT([yes]),[
  AC_MSG_RESULT([no]) 
- AC_MSG_ERROR([Only libSDL 1.2.x or 2.0.x supported])])
+ AC_MSG_ERROR([Only libSDL 1.2.x or 2.y.z supported])])
  ])
 
 dnl Checks for header files.
