@@ -31,7 +31,7 @@ def git_rev(path):
 # Ideally having the configure options and compiler flags would be nice.
 def compiler_rev(compiler):
     try:
-        out = check_output([compiler, '--version'],
+        out = check_output(compiler + ['--version'],
                            universal_newlines=True).splitlines()[0]
 
         if out.startswith('em'):
@@ -54,12 +54,12 @@ def make_version_h(gitpath, compiler):
 
 # Program begins here
 
-if len(argv) != 4:
+if len(argv) < 4:
     print("Usage: python", argv[0],
-          "VERSION_HEADER, GIT_PATH, COMPILER_PATH")
+          "VERSION_HEADER GIT_PATH COMPILER_EXECUTABLE [ARGUMENTS...]")
     exit(1)
 
-current_version = make_version_h(argv[2], argv[3])
+current_version = make_version_h(argv[2], argv[3:])
 
 # Only update file if version info has changed
 
