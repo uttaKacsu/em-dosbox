@@ -36,7 +36,7 @@ def compiler_rev(compiler):
 
         if out.startswith('em'):
             # Assume emscripten
-            m = re.match('^[^)]+\) ([^ ]+) \(commit (.......).*$', out)
+            m = re.match('^[^)]+\) ([^ ]+) \((?:commit )?(.......).*$', out)
             rev = 'Emscripten ' + m.group(1) + ' ' + m.group(2)
         else:
             m = re.match('^([^ ]+) .* ([^ ]+)$', out)
