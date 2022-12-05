@@ -20,6 +20,7 @@ dnl AC_CANONICAL_HOST fails to detect Emscripten.
 dnl This contains kludges to make things work.
 AS_IF([test "x$enable_emscripten" = "xyes"],
       [host_alias=none
+       cross_compiling=yes
        : ${CXXFLAGS="-O3"}
        : ${CFLAGS="-O3"}
        ac_cv_exeext=.html])
