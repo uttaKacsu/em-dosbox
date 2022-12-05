@@ -4,18 +4,17 @@ AC_PREREQ(2.50)
 AC_CONFIG_SRCDIR(README)
 
 dnl Check for Emscripten is done early because it needs to change host triplet.
-AS_CASE([$CC],
-        [*emcc.py], [enable_emscripten="yes"],
-        [*emcc], [enable_emscripten="yes"],
-        [enable_emscripten="no"])
-
-AS_IF([test "x$enable_emscripten" = "xyes"],
-      AC_MSG_NOTICE([auto-detected use of Emscripten]))
-
 AC_ARG_ENABLE(
   [emscripten],
   [AC_HELP_STRING([--enable-emscripten=@<:@no/yes@:>@],
-                  [compile to JavaScript using Emscripten])])
+                  [compile to JavaScript using Emscripten])],,
+  [AS_CASE([$CC],
+           [*emcc.py], [enable_emscripten="yes"],
+           [*emcc], [enable_emscripten="yes"],
+           [enable_emscripten="no"])
+
+   AS_IF([test "x$enable_emscripten" = "xyes"],
+         AC_MSG_NOTICE([auto-detected use of Emscripten]))])
 
 dnl AC_CANONICAL_HOST fails to detect Emscripten.
 dnl This contains kludges to make things work.
