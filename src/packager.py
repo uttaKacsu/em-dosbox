@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from __future__ import print_function
 import sys, os, subprocess
+import configparser
 
 if len(sys.argv) < 3:
     print('To package a single file:')
@@ -38,19 +39,14 @@ elif not os.path.exists(sys.argv[2]):
 else:
     error("Don't know how to package %s" % sys.argv[2])
 
-def getfiletext(fn):
+def emroot_from_cfgfile():
     try:
-        f = open(fn, 'r')
-        txt = f.read()
+        with open(os.path.expanduser('~/.emscripten'), 'r') as f:
+            c = configparser.ConfigParser()
+            c.read_string("[top]\n" + f.read())
+            return c['top']['EMSCRIPTEN_ROOT'].strip("'").strip('"')
     except Exception as e:
-        error('Error reading file: %s' % (str(e)))
-    f.close
-    return txt
-
-try:
-  exec(getfiletext(os.path.expanduser('~/.emscripten')))
-except Exception as e:
-  error('Error evaluating Emscripten configuration: %s' % (str(e)))
+        return None
 
 # Find folder in PATH environment variable which contains specified file
 def find_in_path(fn):
@@ -59,15 +55,20 @@ def find_in_path(fn):
             return d
     return None
 
+def emroot_from_em_config():
+    try:
+        return subprocess.check_output(['em-config', 'EMSCRIPTEN_ROOT'],
+                                       universal_newlines=True).rstrip('\n')
+    except:
+        return None
+
 # Find Emscripten from EMSCRIPTEN_ROOT or by searching via PATH
 def find_emscripten():
-    if 'EMSCRIPTEN_ROOT' in globals():
-        em_path = EMSCRIPTEN_ROOT
-    else:
-        em_path = find_in_path('emcc');
+    em_path = emroot_from_em_config() or find_in_path('emcc') or \
+              emroot_from_cfgfile()
 
     if em_path is None or not os.path.isdir(em_path):
-        error("Can't find Emscripten. Add it to PATH or set EMSCRIPTEN_ROOT.");
+        error("Can't find Emscripten. Add emcc to PATH.");
 
     return em_path;
 
