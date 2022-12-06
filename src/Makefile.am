@@ -27,6 +27,9 @@ else
 # Memory init file is huge and it doesn't save bandwith even if using gzip.
 # It is only required when using emterpreter.
 dosbox_LDFLAGS+=--memory-init-file 0
+if ASYNCIFY
+dosbox_LDFLAGS+=-s ASYNCIFY=1 -s FETCH=1
+endif
 endif
 if WEBASSEMBLY
 dosbox_LDFLAGS+=-s WASM=1

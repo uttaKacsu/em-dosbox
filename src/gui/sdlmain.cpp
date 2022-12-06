@@ -427,7 +427,7 @@ static Bitu Pause_Loop(void) {
 			}
 		}
 	}
-#ifdef EMTERPRETER_SYNC
+#if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 	emscripten_sleep(10);
 #endif
 	return 0;
@@ -2027,7 +2027,7 @@ static void GUI_StartUp(Section * sec) {
  * The splash screen requires emterpreter sync.
  * Creating a 2D context prevents subsequent creation of a 3D context.
  */
-#if !defined(EMSCRIPTEN) || defined(EMTERPRETER_SYNC)
+#if !defined(EMSCRIPTEN) || defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 /* Please leave the Splash screen stuff in working order in DOSBox. We spend a lot of time making DOSBox. */
 	SDL_Surface* splash_surf = NULL;
 #ifdef EMSCRIPTEN
@@ -2080,8 +2080,12 @@ static void GUI_StartUp(Section * sec) {
 				}
 			}
 			if (exit_splash) break;
-#if defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#ifdef EMSCRIPTEN
+#ifdef EMTERPRETER_SYNC
 			emscripten_sleep_with_yield(1);
+#elif defined(EM_ASYNCIFY)
+			emscripten_sleep(1);
+#endif
 #endif
 
 			if (ct<1) {
@@ -2136,7 +2140,7 @@ static void GUI_StartUp(Section * sec) {
 		delete [] tmpbufp;
 
 	}
-#endif // !defined(EMSCRIPTEN) || defined(EMTERPRETER_SYNC)
+#endif // !defined(EMSCRIPTEN) || defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 	/* Get some Event handlers */
 	MAPPER_AddHandler(KillSwitch,MK_f9,MMOD1,"shutdown","ShutDown");
 	MAPPER_AddHandler(CaptureMouse,MK_f10,MMOD1,"capmouse","Cap Mouse");

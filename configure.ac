@@ -630,6 +630,14 @@ AC_ARG_ENABLE(
   [], [enable_sync=no])
 AM_CONDITIONAL([EMTERPRETER], [test "x$enable_sync" != "xno"])
 
+AH_TEMPLATE([EM_ASYNCIFY],[Compile using Emscripten asyncify.])
+AC_ARG_ENABLE(
+  [asyncify],
+  [AC_HELP_STRING([--disable-asyncify],
+    [Disable Emscripten asyncify])],
+  [], [enable_asyncify=yes])
+AM_CONDITIONAL([ASYNCIFY], [test "x$enable_asyncify" != "xno"])
+
 AC_ARG_ENABLE(
   [wasm],
   [AC_HELP_STRING([--disable-wasm],
@@ -641,6 +649,7 @@ AM_CONDITIONAL([WEBASSEMBLY], [test "x$enable_wasm" == "xyes"])
 # host compiler, so those flags are set at the end.
 AS_IF([test "x$enable_emscripten" = "xyes"],[
   AS_IF([test "x$enable_sync" != "xno"], [AC_DEFINE([EMTERPRETER_SYNC],[1])])
+  AS_IF([test "x$enable_asyncify" != "xno"], [AC_DEFINE([EM_ASYNCIFY],[1])])
   AS_IF([test "x$with_sdl2" != "xno"],[
     AS_IF([test "x$with_sdl2" = "xyes"],
       [CXXFLAGS="$CXXFLAGS -s USE_SDL=2"],

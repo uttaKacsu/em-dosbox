@@ -137,7 +137,7 @@ Bit32u ticksScheduled;
 bool ticksLocked;
 
 #ifdef EMSCRIPTEN
-#ifdef EMTERPRETER_SYNC
+#if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 int nosleep_lock = 0;
 #else
 static int runcount = 0;
@@ -148,7 +148,7 @@ static Bitu Normal_Loop(void) {
 	Bits ret;
 #ifdef EMSCRIPTEN
 	int ticksEntry = GetTicks();
-#ifdef EMTERPRETER_SYNC
+#if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 	/* Normal DOSBox is free to use up all available host CPU time, but
 	 * in a browser, sleep has to happen regularly so the screen is updated,
 	 * sound isn't interrupted, and the script does not appear to hang.
@@ -158,7 +158,11 @@ static Bitu Normal_Loop(void) {
 	if (SDL_TICKS_PASSED(ticksEntry, last_sleep + 10)) {
 		if (nosleep_lock == 0) {
 			last_sleep = ticksEntry;
+#ifdef EMTERPRETER_SYNC
 			emscripten_sleep_with_yield(1);
+#elif defined(EM_ASYNCIFY)
+			emscripten_sleep(1);
+#endif
 			ticksEntry = GetTicks();
 		} else if (SDL_TICKS_PASSED(ticksEntry, last_sleep + 2000) &&
 		           !SDL_TICKS_PASSED(ticksEntry, last_loop + 200)) {
@@ -360,10 +364,14 @@ increaseticks:
 			ticksAdded = 0;
 #ifndef EMSCRIPTEN
 			SDL_Delay(1);
-#elif defined(EMTERPRETER_SYNC)
+#elif defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 			if (nosleep_lock == 0) {
 				last_sleep = ticksNew;
+#ifdef EMTERPRETER_SYNC
 				emscripten_sleep_with_yield(1);
+#elif defined(EM_ASYNCIFY)
+				emscripten_sleep(1);
+#endif
 			}
 #endif
 			ticksDone -= GetTicks() - ticksNew;
@@ -417,7 +425,7 @@ static void em_main_loop(void) {
 #endif
 
 void DOSBOX_RunMachine(void){
-#if defined(EMSCRIPTEN) && !defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && !defined(EMTERPRETER_SYNC) && !defined(EM_ASYNCIFY)
 	if (runcount == 0) {
 		runcount = 1;
 	} else if (runcount == 1) {
@@ -434,7 +442,7 @@ void DOSBOX_RunMachine(void){
 	Bitu ret;
 	do {
 		ret=(*loop)();
-#if defined(EMSCRIPTEN) && !defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && !defined(EMTERPRETER_SYNC) && !defined(EM_ASYNCIFY)
 		/* These should be very short operations, like interrupts.
 		 * Anything taking a long time will probably run indefinitely,
 		 * making DOSBox appear to hang.

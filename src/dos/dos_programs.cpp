@@ -23,7 +23,7 @@
 #include <ctype.h>
 #include <string>
 #include <vector>
-#if defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && (defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY))
 #include <emscripten.h>
 #include <emscripten/fetch.h>
 #include "dos_inc.h"
@@ -1535,7 +1535,7 @@ static void KEYB_ProgramStart(Program * * make) {
 	*make=new KEYB;
 }
 
-#if defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && (defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY))
 class WGET : public Program {
 public:
 	void Run(void);
@@ -1598,7 +1598,12 @@ void WGET::Run(void) {
 		attr.onerror = downloadFailed;
 		fetchdone = false;
 		emscripten_fetch_t *fetch = emscripten_fetch(&attr, url.c_str());
-		while (!fetchdone) emscripten_sleep_with_yield(10);
+		while (!fetchdone)
+#ifdef EMTERPRETER_SYNC
+			emscripten_sleep_with_yield(10);
+#elif defined(EM_ASYNCIFY)
+			emscripten_sleep(10);
+#endif
 		if (fetchsuccess) {
 			Bit16u fhandle;
 			if (!DOS_CreateFile(outname.c_str(),OPEN_WRITE,&fhandle)) {
@@ -1640,7 +1645,7 @@ void WGET::Run(void) {
 static void WGET_ProgramStart(Program * * make) {
 	*make=new WGET;
 }
-#endif // defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#endif // defined(EMSCRIPTEN) && (defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY))
 
 void DOS_SetupPrograms(void) {
 	/*Add Messages */
@@ -1863,7 +1868,7 @@ void DOS_SetupPrograms(void) {
 	MSG_Add("PROGRAM_KEYB_INVALIDFILE","Keyboard file %s invalid\n");
 	MSG_Add("PROGRAM_KEYB_LAYOUTNOTFOUND","No layout in %s for codepage %i\n");
 	MSG_Add("PROGRAM_KEYB_INVCPFILE","None or invalid codepage file for layout %s\n\n");
-#if defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && (defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY))
 	MSG_Add("PROGRAM_WGET_SHOWHELP",
 		"\033[32;1mWGET\033[0m [-o FILENAME] URL\n\n"
 		"Downloads file from URL and saves it to the file system.\n"
@@ -1887,7 +1892,7 @@ void DOS_SetupPrograms(void) {
 	PROGRAMS_MakeFile("LOADROM.COM", LOADROM_ProgramStart);
 	PROGRAMS_MakeFile("IMGMOUNT.COM", IMGMOUNT_ProgramStart);
 	PROGRAMS_MakeFile("KEYB.COM", KEYB_ProgramStart);
-#if defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && (defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY))
 	PROGRAMS_MakeFile("WGET.COM", WGET_ProgramStart);
 #endif
 }

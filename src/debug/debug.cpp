@@ -27,7 +27,7 @@
 #include <iomanip>
 #include <string>
 #include <sstream>
-#if defined(EMSCRIPTEN) && defined(EMTERPRETER_SYNC)
+#if defined(EMSCRIPTEN) && (defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY))
 #include <emscripten.h>
 #endif
 using namespace std;
@@ -1826,6 +1826,8 @@ Bitu DEBUG_Loop(void) {
 #if defined(EMSCRIPTEN)
 #if defined(EMTERPRETER_SYNC)
 	emscripten_sleep_with_yield(1);
+#elif defined(EM_ASYNCIFY)
+	emscripten_sleep(1);
 #endif
 #else
 	SDL_Delay(1);
