@@ -28,7 +28,8 @@ else
 # It is only required when using emterpreter.
 dosbox_LDFLAGS+=--memory-init-file 0
 if ASYNCIFY
-dosbox_LDFLAGS+=-s ASYNCIFY=1 -s FETCH=1
+dosbox_LDFLAGS+=-s ASYNCIFY=1 -s FETCH=1 -s ASYNCIFY_ONLY=@asyncify.txt
+EXTRA_dosbox_DEPENDENCIES=asyncify.txt
 endif
 endif
 if WEBASSEMBLY

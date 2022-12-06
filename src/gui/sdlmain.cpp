@@ -2915,6 +2915,15 @@ int main(int argc, char* argv[]) {
 	LOG_MSG("---");
 
 	/* Init SDL */
+#if SDL_VERSION_ATLEAST(2,0,0) && defined(EM_ASYNCIFY)
+	/* SDL calling emscripten_sleep() would be unnecessary, and would also
+	 * require many more functions to be processed via asyncify.
+	 * This was added in SDL 2.0.14, so it can cause compile errors with old
+	 * SDL. Compile errors are better than SDL calling emscripten_sleep()
+	 * and causing mysterious exceptions.
+	 */
+	SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
+#endif
 #if SDL_VERSION_ATLEAST(1, 2, 14)
 	/* Or debian/ubuntu with older libsdl version as they have done this themselves, but then differently.
 	 * with this variable they will work correctly. I've only tested the 1.2.14 behaviour against the windows version
