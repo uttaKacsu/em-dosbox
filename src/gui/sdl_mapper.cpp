@@ -32,9 +32,12 @@
 #include "SDL.h"
 #include "SDL_thread.h"
 #ifdef EMSCRIPTEN
-/* Not sure why this is needed. */
-#define SDLK_QUOTE (0xde)
+// This used to be needed but now actually breaks the key in SDL 1 and 2
+//#define SDLK_QUOTE (0xde)
+#if !SDL_VERSION_ATLEAST(2,0,0)
 #define SDLK_SCROLLOCK (0x91)
+// TODO: More keys are broken with SDL 1
+#endif
 #endif
 
 #include "dosbox.h"

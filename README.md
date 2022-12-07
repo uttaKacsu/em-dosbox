@@ -82,8 +82,11 @@ to speed up compilation by running multiple Emscripten processes in parallel
 [may break this](https://github.com/kripken/emscripten/issues/3033).
 Once SDL 2 has been built by Emscripten, you can use `make -j`.
 To use a different pre-built copy of Emscripten SDL 2, specify a path as in
-`emconfigure ./configure --with-sdl2=/path/to/SDL-emscripten`. To use SDL 1,
-give a `--with-sdl2=no` or `--without-sdl2` argument to `./configure`.
+`emconfigure ./configure --with-sdl2=/path/to/SDL-emscripten`.
+
+To use SDL 1, give a `--with-sdl2=no` or `--without-sdl2` argument to
+`./configure`. There will be more problems, like some keys not working and the
+mapper not displaying. Emscripten's SDL 2 is better.
 
 Emscripten [Asyncify](https://emscripten.org/docs/porting/asyncify.html) is
 used by default. This enables more DOSBox features to work, and only causes
