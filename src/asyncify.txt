@@ -44,5 +44,6 @@
 "MAPPER_RunEvent(unsigned int)",
 "MAPPER_RunInternal()",
 "Pause_Loop()",
+"DefocusPause_Loop()",
 "WGET::Run()"
 ]

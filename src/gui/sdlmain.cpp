@@ -427,11 +427,14 @@ static Bitu Pause_Loop(void) {
 			}
 		}
 	}
-#if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
+#ifdef EMTERPRETER_SYNC
+	emscripten_sleep_with_yield(10);
+#elif defined(EM_ASYNCIFY)
 	emscripten_sleep(10);
 #endif
 	return 0;
 }
+
 #else
 // Normal non-Emscripten pause code
 static void PauseDOSBox(bool pressed) {
@@ -487,6 +490,93 @@ static void PauseDOSBox(bool pressed) {
 	}
 }
 #endif // !EMSCRIPTEN
+
+#ifdef EMSCRIPTEN
+static Bitu DefocusPause_Loop(void);
+#endif
+static void DefocusPause(void) {
+	/* Window has lost focus, pause the emulator.
+	 * This is similar to what PauseDOSBox() does, but the exit criteria is different.
+	 * Instead of waiting for the user to hit Alt-Break, we wait for the window to
+	 * regain window or input focus.
+	 */
+
+	GFX_SetTitle(-1,-1,true);
+	KEYBOARD_ClrBuffer();
+//					SDL_Delay(500);
+//					while (SDL_PollEvent(&ev)) {
+		// flush event queue.
+//					}
+
+#ifndef EMSCRIPTEN
+	SDL_Event ev;
+	bool paused = true;
+	while (paused) {
+		// WaitEvent waits for an event rather than polling, so CPU usage drops to zero
+		SDL_WaitEvent(&ev);
+#else
+	DOSBOX_SetLoop(DefocusPause_Loop);
+} // EMSCRIPTEN
+
+static Bitu DefocusPause_Loop(void) {
+	SDL_Event ev;
+	bool paused = true;
+	while (SDL_PollEvent(&ev)) {
+#endif // EMSCRIPTEN
+		switch (ev.type) {
+		case SDL_QUIT: throw(0); break; // a bit redundant at linux at least as the active events gets before the quit event.
+#if !SDL_VERSION_ATLEAST(2,0,0)
+		case SDL_ACTIVEEVENT:     // wait until we get window focus back
+			if (ev.active.state & (SDL_APPINPUTFOCUS | SDL_APPACTIVE)) {
+				// We've got focus back, so unpause and break out of the loop
+				if (ev.active.gain) {
+					paused = false;
+					GFX_SetTitle(-1,-1,false);
+				}
+
+				/* Now poke a "release ALT" command into the keyboard buffer
+				 * we have to do this, otherwise ALT will 'stick' and cause
+				 * problems with the app running in the DOSBox.
+				 */
+				KEYBOARD_AddKey(KBD_leftalt, false);
+				KEYBOARD_AddKey(KBD_rightalt, false);
+			}
+			break;
+#else // SDL_VERSION_ATLEAST(2,0,0)
+		case SDL_WINDOWEVENT:     // wait until we get window focus back
+			if ((ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST) || (ev.window.event == SDL_WINDOWEVENT_MINIMIZED) || (ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) || (ev.window.event == SDL_WINDOWEVENT_RESTORED) || (ev.window.event == SDL_WINDOWEVENT_EXPOSED)) {
+				// We've got focus back, so unpause and break out of the loop
+				if ((ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) || (ev.window.event == SDL_WINDOWEVENT_RESTORED) || (ev.window.event == SDL_WINDOWEVENT_EXPOSED)) {
+					paused = false;
+					GFX_SetTitle(-1,-1,false);
+				}
+
+				/* Now poke a "release ALT" command into the keyboard buffer
+				 * we have to do this, otherwise ALT will 'stick' and cause
+				 * problems with the app running in the DOSBox.
+				 */
+				KEYBOARD_AddKey(KBD_leftalt, false);
+				KEYBOARD_AddKey(KBD_rightalt, false);
+				if (ev.window.event == SDL_WINDOWEVENT_RESTORED) {
+					// We may need to re-create a texture and more
+					GFX_ResetScreen();
+				}
+			}
+			break;
+#endif // SDL_VERSION_ATLEAST(2,0,0)
+		}
+	}
+#ifdef EMSCRIPTEN
+	if (!paused) DOSBOX_SetNormalLoop();
+#ifdef EMTERPRETER_SYNC
+	emscripten_sleep_with_yield(10);
+#elif defined(EM_ASYNCIFY)
+	emscripten_sleep(10);
+#endif
+	return 0;
+#endif // EMSCRIPTEN
+}
+
 
 #if !SDL_VERSION_ATLEAST(2,0,0)
 #if defined (WIN32)
@@ -2314,49 +2404,7 @@ void GFX_Events() {
 			 */
 			if (sdl.priority.nofocus == PRIORITY_LEVEL_PAUSE) {
 				if ((event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) || (event.window.event == SDL_WINDOWEVENT_MINIMIZED)) {
-					/* Window has lost focus, pause the emulator.
-					 * This is similar to what PauseDOSBox() does, but the exit criteria is different.
-					 * Instead of waiting for the user to hit Alt-Break, we wait for the window to
-					 * regain window or input focus.
-					 */
-					bool paused = true;
-					SDL_Event ev;
-
-					GFX_SetTitle(-1,-1,true);
-					KEYBOARD_ClrBuffer();
-//					SDL_Delay(500);
-//					while (SDL_PollEvent(&ev)) {
-						// flush event queue.
-//					}
-
-					while (paused) {
-						// WaitEvent waits for an event rather than polling, so CPU usage drops to zero
-						SDL_WaitEvent(&ev);
-
-						switch (ev.type) {
-						case SDL_QUIT: throw(0); break; // a bit redundant at linux at least as the active events gets before the quit event.
-						case SDL_WINDOWEVENT:     // wait until we get window focus back
-							if ((ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST) || (ev.window.event == SDL_WINDOWEVENT_MINIMIZED) || (ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) || (ev.window.event == SDL_WINDOWEVENT_RESTORED) || (ev.window.event == SDL_WINDOWEVENT_EXPOSED)) {
-								// We've got focus back, so unpause and break out of the loop
-								if ((ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) || (ev.window.event == SDL_WINDOWEVENT_RESTORED) || (ev.window.event == SDL_WINDOWEVENT_EXPOSED)) {
-									paused = false;
-									GFX_SetTitle(-1,-1,false);
-								}
-
-								/* Now poke a "release ALT" command into the keyboard buffer
-								 * we have to do this, otherwise ALT will 'stick' and cause
-								 * problems with the app running in the DOSBox.
-								 */
-								KEYBOARD_AddKey(KBD_leftalt, false);
-								KEYBOARD_AddKey(KBD_rightalt, false);
-								if (ev.window.event == SDL_WINDOWEVENT_RESTORED) {
-									// We may need to re-create a texture and more
-									GFX_ResetScreen();
-								}
-							}
-							break;
-						}
-					}
+					DefocusPause();
 				}
 			}
 			break;
@@ -2393,45 +2441,7 @@ void GFX_Events() {
 			 */
 			if (sdl.priority.nofocus == PRIORITY_LEVEL_PAUSE) {
 				if ((event.active.state & (SDL_APPINPUTFOCUS | SDL_APPACTIVE)) && (!event.active.gain)) {
-					/* Window has lost focus, pause the emulator.
-					 * This is similar to what PauseDOSBox() does, but the exit criteria is different.
-					 * Instead of waiting for the user to hit Alt-Break, we wait for the window to
-					 * regain window or input focus.
-					 */
-					bool paused = true;
-					SDL_Event ev;
-
-					GFX_SetTitle(-1,-1,true);
-					KEYBOARD_ClrBuffer();
-//					SDL_Delay(500);
-//					while (SDL_PollEvent(&ev)) {
-						// flush event queue.
-//					}
-
-					while (paused) {
-						// WaitEvent waits for an event rather than polling, so CPU usage drops to zero
-						SDL_WaitEvent(&ev);
-
-						switch (ev.type) {
-						case SDL_QUIT: throw(0); break; // a bit redundant at linux at least as the active events gets before the quit event.
-						case SDL_ACTIVEEVENT:     // wait until we get window focus back
-							if (ev.active.state & (SDL_APPINPUTFOCUS | SDL_APPACTIVE)) {
-								// We've got focus back, so unpause and break out of the loop
-								if (ev.active.gain) {
-									paused = false;
-									GFX_SetTitle(-1,-1,false);
-								}
-
-								/* Now poke a "release ALT" command into the keyboard buffer
-								 * we have to do this, otherwise ALT will 'stick' and cause
-								 * problems with the app running in the DOSBox.
-								 */
-								KEYBOARD_AddKey(KBD_leftalt, false);
-								KEYBOARD_AddKey(KBD_rightalt, false);
-							}
-							break;
-						}
-					}
+					DefocusPause();
 				}
 			}
 			break;

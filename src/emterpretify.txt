@@ -44,5 +44,6 @@
 "__Z15MAPPER_RunEventj",
 "__Z18MAPPER_RunInternalv",
 "__ZL10Pause_Loopv",
+"__ZL10DefocusPause_Loopv",
 "__ZN4WGET3RunEv"
 ]
