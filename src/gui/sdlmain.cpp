@@ -388,6 +388,9 @@ static void KillSwitch(bool pressed) {
 static Bitu Pause_Loop(void);
 static Uint32 pause_key_timeout;
 static bool ignore_pause_key;
+/* Causes GFX_Events() to stop processing events, so the alternate loop
+   set via DOSBOX_SetLoop() gets them instead. */
+static bool divert_events;
 static void PauseDOSBox(bool pressed) {
 	if (!pressed)
 		return;
@@ -395,6 +398,7 @@ static void PauseDOSBox(bool pressed) {
 	ignore_pause_key = true;
 	pause_key_timeout = SDL_GetTicks() + 500;
 	KEYBOARD_ClrBuffer();
+	divert_events = true;
 	DOSBOX_SetLoop(Pause_Loop);
 }
 
@@ -422,6 +426,7 @@ static Bitu Pause_Loop(void) {
 			case SDL_KEYUP:
 			if(!ignore_pause_key && event.key.keysym.sym == SDLK_PAUSE) {
 				GFX_SetTitle(-1,-1,false);
+				divert_events = false;
 				DOSBOX_SetNormalLoop();
 				break;
 			}
@@ -515,6 +520,7 @@ static void DefocusPause(void) {
 		// WaitEvent waits for an event rather than polling, so CPU usage drops to zero
 		SDL_WaitEvent(&ev);
 #else
+	divert_events = true;
 	DOSBOX_SetLoop(DefocusPause_Loop);
 } // EMSCRIPTEN
 
@@ -567,7 +573,11 @@ static Bitu DefocusPause_Loop(void) {
 		}
 	}
 #ifdef EMSCRIPTEN
-	if (!paused) DOSBOX_SetNormalLoop();
+	if (!paused) {
+		divert_events = false;
+		DOSBOX_SetNormalLoop();
+	}
+
 #ifdef EMTERPRETER_SYNC
 	emscripten_sleep_with_yield(10);
 #elif defined(EM_ASYNCIFY)
@@ -2358,7 +2368,11 @@ void GFX_Events() {
 		MAPPER_UpdateJoysticks();
 	}
 #endif
-	while (SDL_PollEvent(&event)) {
+	while (
+#ifdef EMSCRIPTEN
+	       !divert_events &&
+#endif
+	       SDL_PollEvent(&event)) {
 		switch (event.type) {
 #if SDL_VERSION_ATLEAST(2,0,0)
 		case SDL_WINDOWEVENT:
