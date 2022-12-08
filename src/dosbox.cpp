@@ -137,8 +137,53 @@ Bit32u ticksScheduled;
 bool ticksLocked;
 void increaseticks();
 
+#ifdef EMSCRIPTEN
+static int ticksEntry;
+#if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
+int nosleep_lock = 0;
+static Bitu last_sleep;
+#else
+static int runcount = 0;
+#endif
+#endif
+
 static Bitu Normal_Loop(void) {
 	Bits ret;
+#ifdef EMSCRIPTEN
+	ticksEntry = GetTicks();
+#if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
+	/* Normal DOSBox is free to use up all available host CPU time, but
+	 * in a browser, sleep has to happen regularly so the screen is updated,
+	 * sound isn't interrupted, and the script does not appear to hang.
+	 */
+	last_sleep = 0;
+	static Bitu last_loop = 0;
+	if (SDL_TICKS_PASSED(ticksEntry, last_sleep + 10)) {
+		if (nosleep_lock == 0) {
+			last_sleep = ticksEntry;
+#ifdef EMTERPRETER_SYNC
+			emscripten_sleep_with_yield(1);
+#elif defined(EM_ASYNCIFY)
+			emscripten_sleep(1);
+#endif
+			ticksEntry = GetTicks();
+		} else if (SDL_TICKS_PASSED(ticksEntry, last_sleep + 2000) &&
+		           !SDL_TICKS_PASSED(ticksEntry, last_loop + 200)) {
+			/* Emterpreter makes code much slower, so the CPU interpreter does
+			 * not use it. That means it must not be interrupted using
+			 * emscripten_sleep(). Normally, CPU interpreter recursion should
+			 * only involve brief CPU exceptions, so this should not be
+			 * triggered. Sometimes DOSBox fails to detect return from
+			 * exception. Timeout must not be triggered when the browser is
+			 * running slow overall or the page is in the background.
+			 */
+			LOG_MSG("Emulation aborted due to nested emulation timeout.");
+			em_exit(1);
+		}
+	}
+	last_loop = ticksEntry;
+#endif // defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
+#endif // EMSCRIPTEN
 	while (1) {
 		if (PIC_RunQueue()) {
 			ret = (*cpudecoder)();
@@ -161,6 +206,34 @@ static Bitu Normal_Loop(void) {
 	}
 }
 
+/*** CPU cycle adjustment algorithm configuration ***/
+#ifdef EMSCRIPTEN
+// This only includes CPU usage during the main loop. Other Emscripten code
+// plus the browser also require CPU time. Low values don't take full
+// advantage of the host CPU and decrease emulation performance. High values
+// cause tick limits to be hit more often and disrupt sound.
+// Over 60 increases sound interruptions in Firefox 34 in Linux.
+// Up to 80 delivers results which aren't too bad.
+#define CPU_USAGE_TARGET 60
+// Exceeding the soft limit will case immediate cutback or
+// recalculation of CPU_CycleMax.
+#define SOFT_TICK_LIMIT 18
+// Exceeding the hard limit causes emulation to slow down compared to real
+// time. Occasional spikes triggering this are unavoidable in a browser.
+// Missed ticks are added to the backlog in an attempt to catch up later.
+#define HARD_TICK_LIMIT 25
+// The backlog cannot be allowed to grow without bound.
+#define BACKLOG_LIMIT 50
+#else
+#define CPU_USAGE_TARGET 90
+#define SOFT_TICK_LIMIT 15
+#define HARD_TICK_LIMIT 20
+#define BACKLOG_LIMIT 40
+#endif
+
+// Define this to print output of CPU cycle adjustment algorithm
+//#define DEBUG_CYCLE_ADJUST
+
 void increaseticks() { //Make it return ticksRemain and set it in the function above to remove the global variable.
 	if (GCC_UNLIKELY(ticksLocked)) { // For Fast Forward Mode
 		ticksRemain=5;
@@ -177,7 +250,18 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 	ticksScheduled += ticksAdded;
 	if (ticksNew <= ticksLast) { //lower should not be possible, only equal.
 		ticksAdded = 0;
+#ifndef EMSCRIPTEN
 		SDL_Delay(1);
+#elif defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
+		if (nosleep_lock == 0) {
+			last_sleep = ticksNew;
+#ifdef EMTERPRETER_SYNC
+			emscripten_sleep_with_yield(1);
+#elif defined(EM_ASYNCIFY)
+			emscripten_sleep(1);
+#endif
+		}
+#endif
 		ticksDone -= GetTicks() - ticksNew;
 		if (ticksDone < 0)
 			ticksDone = 0;
@@ -195,20 +279,48 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 	//TicksNew > ticksLast
 	ticksRemain = ticksNew-ticksLast;
 	ticksLast = ticksNew;
+#ifdef EMSCRIPTEN
+	/* Calculations below are meant to be based on the number of ticks
+	 * used by DOSBox. Ticks between two main loop calls include time
+	 * when DOSBox isn't running, so only time from the start of this
+	 * function is considered.
+	 */
+	ticksDone += ticksNew - ticksEntry;
+#else
 	ticksDone += ticksRemain;
-	if ( ticksRemain > 20 ) {
+#endif
+#ifdef DEBUG_CYCLE_ADJUST
+	// Keep track of emulation slowdown compared to real time
+	static Bit32u ticksLost=0;
+#endif
+	static Bit32u backLog = 0;
+	if (ticksRemain > HARD_TICK_LIMIT) {
 //		LOG(LOG_MISC,LOG_ERROR)("large remain %d",ticksRemain);
-		ticksRemain = 20;
+		backLog += ticksRemain - HARD_TICK_LIMIT;
+		ticksRemain = HARD_TICK_LIMIT;
+		if (backLog > BACKLOG_LIMIT) {
+#ifdef DEBUG_CYCLE_ADJUST
+			ticksLost += backLog - BACKLOG_LIMIT;
+#endif
+			backLog = BACKLOG_LIMIT;
+		}
+	} else if (backLog > 0) {
+		if (backLog < HARD_TICK_LIMIT - ticksRemain) {
+			ticksRemain += backLog;
+			backLog = 0;
+		} else {
+			backLog -= HARD_TICK_LIMIT - ticksRemain;
+			ticksRemain = HARD_TICK_LIMIT;
+		}
 	}
 	ticksAdded = ticksRemain;
 
 	// Is the system in auto cycle mode guessing ? If not just exit. (It can be temporary disabled)
-	if (!CPU_CycleAutoAdjust || CPU_SkipCycleAutoAdjust) return;
+	if (CPU_CycleAutoAdjust && !CPU_SkipCycleAutoAdjust) {
 	
-	if (ticksScheduled >= 250 || ticksDone >= 250 || (ticksAdded > 15 && ticksScheduled >= 5) ) {
+	if (ticksScheduled >= 250 || ticksDone >= 250 || (ticksAdded > SOFT_TICK_LIMIT && ticksScheduled >= 5) ) {
 		if(ticksDone < 1) ticksDone = 1; // Protect against div by zero
-		/* ratio we are aiming for is around 90% usage*/
-		Bit32s ratio = (ticksScheduled * (CPU_CyclePercUsed*90*1024/100/100)) / ticksDone;
+		Bit32s ratio = (ticksScheduled * (CPU_CyclePercUsed*CPU_USAGE_TARGET*1024/100/100)) / ticksDone;
 		Bit32s new_cmax = CPU_CycleMax;
 		Bit64s cproc = (Bit64s)CPU_CycleMax * (Bit64s)ticksScheduled;
 		if (cproc > 0) {
@@ -260,7 +372,7 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 		CPU_IODelayRemoved = 0;
 		ticksDone = 0;
 		ticksScheduled = 0;
-	} else if (ticksAdded > 15) {
+	} else if (ticksAdded > SOFT_TICK_LIMIT) {
 		/* ticksAdded > 15 but ticksScheduled < 5, lower the cycles
 		   but do not reset the scheduled/done ticks to take them into
 		   account during the next auto cycle adjustment */
@@ -268,6 +380,27 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 		if (CPU_CycleMax < CPU_CYCLES_LOWER_LIMIT)
 			CPU_CycleMax = CPU_CYCLES_LOWER_LIMIT;
 	} //if (ticksScheduled >= 250 || ticksDone >= 250 || (ticksAdded > 15 && ticksScheduled >= 5) )
+	}
+
+#ifdef DEBUG_CYCLE_ADJUST
+#define LOG_AVG_SIZE 10
+			static int ctr = 0;
+			static Bit32s cycleavg = 0;
+			static Bit32u ticksRemainavg = 0;
+			cycleavg += CPU_CycleMax;
+			ticksRemainavg += ticksRemain;
+			if (++ctr == LOG_AVG_SIZE) {
+				ctr = 0;
+				// Printing this every time has too much performance impact
+				LOG_MSG("%i %i %i",
+						ticksRemainavg / LOG_AVG_SIZE,
+						cycleavg / LOG_AVG_SIZE,
+						ticksLost);
+				cycleavg = 0;
+				ticksRemainavg = 0;
+				ticksLost = 0;
+			}
+#endif
 }
 
 void DOSBOX_SetLoop(LoopHandler * handler) {
