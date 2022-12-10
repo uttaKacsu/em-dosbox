@@ -327,13 +327,14 @@ AC_ARG_ENABLE(sdlgfx,AC_HELP_STRING([--enable-sdlgfx],
 AS_IF([test "x$enable_sdlgfx" = xyes],[AC_DEFINE(C_SDLGFX,1)])
 
 AH_TEMPLATE(C_CORE_INLINE,[Define to 1 to use inlined memory functions in cpu core])
-AC_ARG_ENABLE(core-inline,AC_HELP_STRING([--enable-core-inline],[Enable inlined memory handling in CPU Core]),[
-  if test x$enable_core_inline = xyes ; then 
-    AC_MSG_RESULT([enabling inlined memory handling in CPU Core])
+AC_ARG_ENABLE(core-inline,AC_HELP_STRING([--disable-core-inline],[Disable inlined memory handling in CPU Core]),,enable_core_inline=yes)
+AC_MSG_CHECKING(whether memory handling in the CPU Core will be inlined)
+if test x$enable_core_inline = xyes ; then
+    AC_MSG_RESULT(yes)
     AC_DEFINE(C_CORE_INLINE,1)
-  fi
-],)
-
+else
+    AC_MSG_RESULT(no)
+fi
 
 dnl The target cpu checks for dynamic cores
 AH_TEMPLATE(C_TARGETCPU,[The type of cpu this target has])
@@ -362,6 +363,18 @@ case "$host_cpu" in
     AC_MSG_RESULT(Motorola 68000)
     c_targetcpu="m68k"
     c_unalignedmemory=yes
+    ;;
+   armv7l)
+    AC_DEFINE(C_TARGETCPU,ARMV7LE)
+    AC_MSG_RESULT(ARMv7 Little Endian)
+    c_targetcpu="arm"
+    c_unalignedmemory=yes
+    ;;
+   armv6l)
+    AC_DEFINE(C_TARGETCPU,ARMV4LE)
+    AC_MSG_RESULT(ARMv6 Little Endian)
+    c_targetcpu="arm"
+    dnl c_unalignedmemory=yes
     ;;
    *)
     AC_DEFINE(C_TARGETCPU,UNKNOWN)
@@ -404,8 +417,13 @@ dnl x86 only enable it if dynamic-x86 is disabled.
     if test x$c_targetcpu = xx86_64 ; then
         AC_DEFINE(C_DYNREC,1)
         AC_MSG_RESULT(yes)
-    else      
-      AC_MSG_RESULT(no)
+    else
+      if test x$c_targetcpu = xarm ; then
+        AC_DEFINE(C_DYNREC,1)
+	AC_MSG_RESULT(yes)
+      else 
+        AC_MSG_RESULT(no)
+      fi
     fi
   fi
 fi
