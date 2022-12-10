@@ -105,7 +105,7 @@ extern char** environ;
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#if (HAVE_DDRAW_H)
+#if C_DDRAW
 #include <ddraw.h>
 struct private_hwdata {
 	LPDIRECTDRAWSURFACE3 dd_surface;
@@ -218,7 +218,7 @@ struct SDL_Block {
 #if !SDL_VERSION_ATLEAST(2,0,0)
 	struct {
 		SDL_Surface * surface;
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 		RECT rect;
 #endif // Windows
 	} blit;
@@ -617,7 +617,7 @@ check_surface:
 		else if (flags & GFX_LOVE_16) testbpp=16;
 		else if (flags & GFX_LOVE_32) testbpp=32;
 		else testbpp=0;
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 check_gotbpp:
 #endif
 		if (sdl.desktop.fullscreen) gotbpp=SDL_VideoModeOK(640,480,testbpp,SDL_FULLSCREEN|SDL_HWSURFACE|SDL_HWPALETTE);
@@ -652,7 +652,7 @@ check_gotbpp:
 			flags |= GFX_CAN_RANDOM;
 		break;
 #if !SDL_VERSION_ATLEAST(2,0,0)
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 	case SCREEN_SURFACE_DDRAW:
 		if (!(flags&(GFX_CAN_15|GFX_CAN_16|GFX_CAN_32))) goto check_surface;
 		if (flags & GFX_LOVE_15) testbpp=15;
@@ -1129,7 +1129,7 @@ dosurface:
 		break;
 	}
 #else	// !SDL_VERSION_ATLEAST(2,0,0)
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 	case SCREEN_SURFACE_DDRAW:
 		if (flags & GFX_CAN_15) bpp=15;
 		if (flags & GFX_CAN_16) bpp=16;
@@ -1502,7 +1502,7 @@ bool GFX_StartUpdate(Bit8u * & pixels,Bitu & pitch) {
 		return true;
 	}
 #else	// !SDL_VERSION_ATLEAST(2,0,0)
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 	case SCREEN_SURFACE_DDRAW:
 		if (SDL_LockSurface(sdl.blit.surface)) {
 //			LOG_MSG("SDL Lock failed");
@@ -1543,7 +1543,7 @@ bool GFX_StartUpdate(Bit8u * & pixels,Bitu & pitch) {
 
 
 void GFX_EndUpdate( const Bit16u *changedLines ) {
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 	int ret;
 #endif
 #if SDL_VERSION_ATLEAST(2,0,0)
@@ -1613,7 +1613,7 @@ void GFX_EndUpdate( const Bit16u *changedLines ) {
 		SDL_RenderPresent(sdl.renderer);
 		break;
 #else	// !SDL_VERSION_ATLEAST(2,0,0)
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 	case SCREEN_SURFACE_DDRAW:
 		SDL_UnlockSurface(sdl.blit.surface);
 		ret=IDirectDrawSurface3_Blt(
@@ -2005,7 +2005,7 @@ static void GUI_StartUp(Section * sec) {
 		// Currently the default, but... oh well
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
 #else	// !SDL_VERSION_ATLEAST(2,0,0)
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 	} else if (output == "ddraw") {
 		sdl.desktop.want_type=SCREEN_SURFACE_DDRAW;
 #endif
@@ -2582,7 +2582,7 @@ void Config_Add_SDL() {
 		"texturenb",
 #else	// !SDL_VERSION_ATLEAST(2, 0, 0)
 		"overlay",
-#if (HAVE_DDRAW_H) && defined(WIN32)
+#if C_DDRAW
 		"ddraw",
 #endif
 #endif	// !SDL_VERSION_ATLEAST(2, 0, 0)

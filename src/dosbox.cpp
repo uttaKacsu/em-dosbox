@@ -360,21 +360,35 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 		Bit32s ratio = (ticksScheduled * (CPU_CyclePercUsed*CPU_USAGE_TARGET*1024/100/100)) / ticksDone;
 		Bit32s new_cmax = CPU_CycleMax;
 		Bit64s cproc = (Bit64s)CPU_CycleMax * (Bit64s)ticksScheduled;
+		double ratioremoved = 0.0; //increase scope for logging
 		if (cproc > 0) {
 			/* ignore the cycles added due to the IO delay code in order
 			   to have smoother auto cycle adjustments */
-			double ratioremoved = (double) CPU_IODelayRemoved / (double) cproc;
+			ratioremoved = (double) CPU_IODelayRemoved / (double) cproc;
 			if (ratioremoved < 1.0) {
-				ratio = (Bit32s)((double)ratio * (1 - ratioremoved));
+				double ratio_not_removed = 1 - ratioremoved;
+				ratio = (Bit32s)((double)ratio * ratio_not_removed);
+
 				/* Don't allow very high ratio which can cause us to lock as we don't scale down
 				 * for very low ratios. High ratio might result because of timing resolution */
-				if (ticksScheduled >= 250 && ticksDone < 10 && ratio > 20480)
-					ratio = 20480;
+				if (ticksScheduled >= 250 && ticksDone < 10 && ratio > 16384)
+					ratio = 16384;
+
+				// Limit the ratio even more when the cycles are already way above the realmode default.
+				if (ticksScheduled >= 250 && ticksDone < 10 && ratio > 5120 && CPU_CycleMax > 50000)
+					ratio = 5120;
+
+				// When downscaling multiple times in a row, ensure a minimum amount of downscaling
+				if (ticksAdded > 15 && ticksScheduled >= 5 && ticksScheduled <= 20 && ratio > 800)
+					ratio = 800;
+
 				if (ratio <= 1024) {
-					double r = 2.0 /(1.0 + 1024.0/(static_cast<double>(ratio)));
+					// ratio_not_removed = 1.0; //enabling this restores the old formula
+					double r = (1.0 + ratio_not_removed) /(ratio_not_removed + 1024.0/(static_cast<double>(ratio)));
 					new_cmax = 1 + static_cast<Bit32s>(CPU_CycleMax * r);
 				} else {
-					Bit64s cmax_scaled = (Bit64s)CPU_CycleMax * (Bit64s)ratio;
+					Bit64s ratio_with_removed = (Bit64s) ((((double)ratio - 1024.0) * ratio_not_removed) + 1024.0);
+					Bit64s cmax_scaled = (Bit64s)CPU_CycleMax * ratio_with_removed;
 					new_cmax = (Bit32s)(1 + (CPU_CycleMax >> 1) + cmax_scaled / (Bit64s)2048);
 				}
 			}
@@ -383,13 +397,14 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 		if (new_cmax < CPU_CYCLES_LOWER_LIMIT)
 			new_cmax = CPU_CYCLES_LOWER_LIMIT;
 		/*
-		LOG(LOG_MISC,LOG_ERROR)("cyclelog: current %06d   cmax %06d   ratio  %05d  done %03d   sched %03d Add %d",
+		LOG(LOG_MISC,LOG_ERROR)("cyclelog: current %06d   cmax %06d   ratio  %05d  done %03d   sched %03d Add %d rr %4.2f",
 			CPU_CycleMax,
 			new_cmax,
 			ratio,
 			ticksDone,
 			ticksScheduled,
-			ticksAdded);
+			ticksAdded,
+			ratioremoved);
 		*/
 
 		/* ratios below 1% are considered to be dropouts due to
@@ -402,7 +417,7 @@ void increaseticks() { //Make it return ticksRemain and set it in the function a
 				CPU_CycleMax = new_cmax;
 				if (CPU_CycleLimit > 0) {
 					if (CPU_CycleMax > CPU_CycleLimit) CPU_CycleMax = CPU_CycleLimit;
-				}
+				} else if (CPU_CycleMax > 2000000) CPU_CycleMax = 2000000; //Hardcoded limit, if no limit was specified.
 			}
 		}
 
@@ -900,10 +915,18 @@ void DOSBOX_Init(void) {
 	Pbool->Set_help("continuously fires as long as you keep the button pressed.");
 
 	Pbool = secprop->Add_bool("swap34",Property::Changeable::WhenIdle,false);
-	Pbool->Set_help("swap the 3rd and the 4th axis. can be useful for certain joysticks.");
+	Pbool->Set_help("swap the 3rd and the 4th axis. Can be useful for certain joysticks.");
 
 	Pbool = secprop->Add_bool("buttonwrap",Property::Changeable::WhenIdle,false);
 	Pbool->Set_help("enable button wrapping at the number of emulated buttons.");
+	
+	Pbool = secprop->Add_bool("circularinput",Property::Changeable::WhenIdle,false);
+	Pbool->Set_help("enable translation of circular input to square output.\n"
+	                "Try enabling this if your left analog stick can only move in a circle.");
+
+	Pint = secprop->Add_int("deadzone",Property::Changeable::WhenIdle,10);
+	Pint->SetMinMax(0,100);
+	Pint->Set_help("the percentage of motion to ignore. 100 turns the stick into a digital one.");
 
 	secprop=control->AddSection_prop("serial",&SERIAL_Init,true);
 	const char* serials[] = { "dummy", "disabled", "modem", "nullmodem",
