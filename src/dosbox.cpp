@@ -141,7 +141,7 @@ void increaseticks();
 static int ticksEntry;
 #if defined(EMTERPRETER_SYNC) || defined(EM_ASYNCIFY)
 int nosleep_lock = 0;
-static Bitu last_sleep;
+static Bitu last_sleep = 0;
 #else
 static int runcount = 0;
 #endif
@@ -156,7 +156,6 @@ static Bitu Normal_Loop(void) {
 	 * in a browser, sleep has to happen regularly so the screen is updated,
 	 * sound isn't interrupted, and the script does not appear to hang.
 	 */
-	last_sleep = 0;
 	static Bitu last_loop = 0;
 	if (SDL_TICKS_PASSED(ticksEntry, last_sleep + 10)) {
 		if (nosleep_lock == 0) {
