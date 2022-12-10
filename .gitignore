@@ -28,6 +28,7 @@ Makefile
 .deps
 /a.out
 /a.out.js
+/a.wasm
 
 # Compiled files
 
