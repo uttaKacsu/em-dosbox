@@ -556,6 +556,7 @@ esac
 else
    AC_MSG_RESULT(no)
 fi
+])
 
 AH_TEMPLATE(C_DDRAW,[Define to 1 to enable output=ddraw (Win32)])
 AC_ARG_ENABLE(ddraw,AC_HELP_STRING([--disable-ddraw],[Disable ddraw support]),,enable_ddraw=yes)
@@ -576,7 +577,6 @@ case "$host" in
        ;;
 esac
 fi
-])
 
 AH_TEMPLATE(C_SDL_SOUND,[Define to 1 to enable SDL_sound support])
 AC_CHECK_HEADER(SDL_sound.h,have_SDL_sound_h=yes,)
