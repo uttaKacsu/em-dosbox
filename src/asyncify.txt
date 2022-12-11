@@ -45,5 +45,6 @@
 "MAPPER_RunInternal()",
 "Pause_Loop()",
 "DefocusPause_Loop()",
+"increaseticks()",
 "WGET::Run()"
 ]
