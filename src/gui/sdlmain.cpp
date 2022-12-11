@@ -496,6 +496,7 @@ static void PauseDOSBox(bool pressed) {
 }
 #endif // !EMSCRIPTEN
 
+static void SetPriority(PRIORITY_LEVELS level);
 #ifdef EMSCRIPTEN
 static Bitu DefocusPause_Loop(void);
 #endif
@@ -572,6 +573,18 @@ static Bitu DefocusPause_Loop(void) {
 #endif // SDL_VERSION_ATLEAST(2,0,0)
 		}
 	}
+
+/* Do other things that are done when focus is regained in GFX_Events() */
+	if (!paused) {
+#if defined(WIN32) && !SDL_VERSION_ATLEAST(2,0,0)
+		if (!sdl.desktop.fullscreen) sdl.focus_ticks = GetTicks();
+#endif
+		if (sdl.desktop.fullscreen && !sdl.mouse.locked)
+			GFX_CaptureMouse();
+		SetPriority(sdl.priority.focus);
+		CPU_Disable_SkipAutoAdjust();
+	}
+
 #ifdef EMSCRIPTEN
 	if (!paused) {
 		divert_events = false;
