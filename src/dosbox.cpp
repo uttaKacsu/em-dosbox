@@ -237,9 +237,9 @@ static Bitu Normal_Loop(void) {
 #ifndef EMSCRIPTEN
 #define wrap_delay(a) SDL_Delay(a)
 #elif defined(EMTERPRETER_SYNC)
-#define wrap_delay(a) emscripten_sleep_with_yield(1);
+#define wrap_delay(a) emscripten_sleep_with_yield(a);
 #elif defined(EM_ASYNCIFY)
-#define wrap_delay(a) emscripten_sleep(1);
+#define wrap_delay(a) emscripten_sleep(a);
 #endif
 
 void increaseticks() { //Make it return ticksRemain and set it in the function above to remove the global variable.
