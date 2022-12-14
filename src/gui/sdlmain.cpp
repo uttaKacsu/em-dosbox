@@ -194,7 +194,7 @@ struct SDL_Block {
 		bool fullscreen;
 		bool lazy_fullscreen;
 		bool lazy_fullscreen_req;
-		bool vsync;
+		bool doublebuf;
 		SCREEN_TYPES type;
 		SCREEN_TYPES want_type;
 	} desktop;
@@ -976,7 +976,7 @@ dosurface:
 #else
 				sdl.surface=SDL_SetVideoMode_Wrap(sdl.desktop.full.width,sdl.desktop.full.height,bpp,
 					SDL_FULLSCREEN | ((flags & GFX_CAN_RANDOM) ? SDL_SWSURFACE : SDL_HWSURFACE) |
-					(sdl.desktop.vsync ? SDL_DOUBLEBUF|SDL_ASYNCBLIT : 0) | SDL_HWPALETTE);
+					(sdl.desktop.doublebuf ? SDL_DOUBLEBUF|SDL_ASYNCBLIT : 0) | SDL_HWPALETTE);
 				if (sdl.surface == NULL) E_Exit("Could not set fullscreen video mode %ix%i-%i: %s",sdl.desktop.full.width,sdl.desktop.full.height,bpp,SDL_GetError());
 #endif
 			} else {
@@ -989,7 +989,7 @@ dosurface:
 #else
 				sdl.surface=SDL_SetVideoMode_Wrap(width,height,bpp,
 					SDL_FULLSCREEN | ((flags & GFX_CAN_RANDOM) ? SDL_SWSURFACE : SDL_HWSURFACE) |
-					(sdl.desktop.vsync ? SDL_DOUBLEBUF|SDL_ASYNCBLIT  : 0)|SDL_HWPALETTE);
+					(sdl.desktop.doublebuf ? SDL_DOUBLEBUF|SDL_ASYNCBLIT  : 0)|SDL_HWPALETTE);
 				if (sdl.surface == NULL)
 					E_Exit("Could not set fullscreen video mode %ix%i-%i: %s",(int)width,(int)height,bpp,SDL_GetError());
 #endif
@@ -1080,7 +1080,7 @@ dosurface:
 			SDL_SetHint(SDL_HINT_RENDER_DRIVER, sdl.rendererDriver);
 		sdl.renderer = SDL_CreateRenderer(sdl.window, -1,
 		                                  SDL_RENDERER_ACCELERATED |
-		                                  (sdl.desktop.vsync ? SDL_RENDERER_PRESENTVSYNC : 0));
+		                                  (sdl.desktop.doublebuf ? SDL_RENDERER_PRESENTVSYNC : 0));
 		if (!sdl.renderer) {
 			LOG_MSG("%s\n", SDL_GetError());
 			LOG_MSG("SDL:Can't create renderer, falling back to surface");
@@ -1150,7 +1150,7 @@ dosurface:
 		if (flags & GFX_CAN_15) bpp=15;
 		if (flags & GFX_CAN_16) bpp=16;
 		if (flags & GFX_CAN_32) bpp=32;
-		if (!GFX_SetupSurfaceScaled((sdl.desktop.vsync && sdl.desktop.fullscreen) ? SDL_DOUBLEBUF : 0,bpp)) goto dosurface;
+		if (!GFX_SetupSurfaceScaled((sdl.desktop.doublebuf && sdl.desktop.fullscreen) ? SDL_DOUBLEBUF : 0,bpp)) goto dosurface;
 		sdl.blit.rect.top=sdl.clip.y;
 		sdl.blit.rect.left=sdl.clip.x;
 		sdl.blit.rect.right=sdl.clip.x+sdl.clip.w;
@@ -1233,10 +1233,10 @@ dosurface:
 			goto dosurface;
 		}
 		/* Sync to VBlank if desired */
-		SDL_GL_SetSwapInterval(sdl.desktop.vsync ? 1 : 0);
+		SDL_GL_SetSwapInterval(sdl.desktop.doublebuf ? 1 : 0);
 #else	// !SDL_VERSION_ATLEAST(2,0,0)
 #if SDL_VERSION_ATLEAST(1, 2, 11)
-		SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, sdl.desktop.vsync ? 1 : 0 );
+		SDL_GL_SetAttribute( SDL_GL_SWAP_CONTROL, 0 );
 #endif
 		GFX_SetupSurfaceScaled(SDL_OPENGL,0);
 		if (!sdl.surface || sdl.surface->format->BitsPerPixel<15) {
@@ -1956,8 +1956,7 @@ static void GUI_StartUp(Section * sec) {
 			}
 		}
 	}
-
-	sdl.desktop.vsync=section->Get_bool("vsync");
+	sdl.desktop.doublebuf=section->Get_bool("fulldouble");
 
 #if SDL_VERSION_ATLEAST(2,0,0)
 
@@ -2595,10 +2594,14 @@ void Config_Add_SDL() {
 
 	Pbool = sdl_sec->Add_bool("fullscreen",Property::Changeable::Always,false);
 	Pbool->Set_help("Start dosbox directly in fullscreen. (Press ALT-Enter to go back)");
-     
-	Pbool = sdl_sec->Add_bool("vsync",Property::Changeable::Always,false);
+
+	Pbool = sdl_sec->Add_bool("fulldouble",Property::Changeable::Always,false);
+#if SDL_VERSION_ATLEAST(2, 0, 0)
 	Pbool->Set_help("Sync to Vblank IF supported by the output device and renderer (if relevant).\n"
 	                "It can reduce screen flickering, but it can also result in a slow DOSBox.");
+#else	// !SDL_VERSION_ATLEAST(2, 0, 0)
+	Pbool->Set_help("Use double buffering in fullscreen. It can reduce screen flickering, but it can also result in a slow DOSBox.");
+#endif	// !SDL_VERSION_ATLEAST(2, 0, 0)
 
 	Pstring = sdl_sec->Add_string("fullresolution",Property::Changeable::Always,"0x0");
 	Pstring->Set_help("What resolution to use for fullscreen: original, desktop or a fixed size (e.g. 1024x768).\n"
