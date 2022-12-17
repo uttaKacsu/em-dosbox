@@ -1287,12 +1287,12 @@ dosurface:
 		// No borders
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-		if (sdl.opengl.bilinear) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		} else {
+		if (!sdl.opengl.bilinear || ( (sdl.clip.h % height) == 0 && (sdl.clip.w % width) == 0) ) {
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		} else {
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		}
 
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, texsize, texsize, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, 0);
@@ -1990,15 +1990,32 @@ static void GUI_StartUp(Section * sec) {
 
 #else	// !SDL_VERSION_ATLEAST(2,0,0)
 
-#if SDL_VERSION_ATLEAST(1, 2, 10) && !defined(WIN32)
+// TODO: Examine SDL 2 high DPI scaling behaviour and see if some
+//       fixes are needed there.
+
+#if SDL_VERSION_ATLEAST(1, 2, 10)
+#ifdef WIN32
+	const SDL_VideoInfo* vidinfo = SDL_GetVideoInfo();
+	if (vidinfo) {
+		int sdl_w = vidinfo->current_w;
+		int sdl_h = vidinfo->current_h;
+		int win_w = GetSystemMetrics(SM_CXSCREEN);
+		int win_h = GetSystemMetrics(SM_CYSCREEN);
+		if (sdl_w != win_w && sdl_h != win_h) 
+			LOG_MSG("Windows dpi/blurry apps scaling detected! The screen might be too large or not\n"
+			        "show properly, please see the DOSBox options file (fullresolution) for details.\n");
+		}
+#else
 	if (!sdl.desktop.full.width || !sdl.desktop.full.height){
 		//Can only be done on the very first call! Not restartable.
+		//On windows don't use it as SDL returns the values without taking in account the dpi scaling
 		const SDL_VideoInfo* vidinfo = SDL_GetVideoInfo();
 		if (vidinfo) {
 			sdl.desktop.full.width = vidinfo->current_w;
 			sdl.desktop.full.height = vidinfo->current_h;
 		}
 	}
+#endif
 #endif
 
 	if (!sdl.desktop.full.width) {
@@ -2397,6 +2414,12 @@ void GFX_HandleVideoResize(int width, int height) {
 #define DB_POLLSKIP 1
 #endif
 
+#if defined(LINUX) && !SDL_VERSION_ATLEAST(2,0,0)
+#define SDL_XORG_FIX 1
+#else
+#define SDL_XORG_FIX 0
+#endif
+
 void GFX_Events() {
 	//Don't poll too often. This can be heavy on the OS, especially Macs.
 	//In idle mode 3000-4000 polls are done per second without this check.
@@ -2424,6 +2447,19 @@ void GFX_Events() {
 	       !divert_events &&
 #endif
 	       SDL_PollEvent(&event)) {
+#if SDL_XORG_FIX
+		// Special code for broken SDL with Xorg 1.20.1, where pairs of inputfocus gain and loss events are generated
+		// when locking the mouse in windowed mode.
+		if (event.type == SDL_ACTIVEEVENT && event.active.state == SDL_APPINPUTFOCUS && event.active.gain == 0) {
+			SDL_Event test; //Check if the next event would undo this one.
+			if (SDL_PeepEvents(&test,1,SDL_PEEKEVENT,SDL_ACTIVEEVENTMASK) == 1 && test.active.state == SDL_APPINPUTFOCUS && test.active.gain == 1) {
+				// Skip both events.
+				SDL_PeepEvents(&test,1,SDL_GETEVENT,SDL_ACTIVEEVENTMASK);
+				continue;
+			}
+		}
+#endif
+
 		switch (event.type) {
 #if SDL_VERSION_ATLEAST(2,0,0)
 		case SDL_WINDOWEVENT:
@@ -2623,12 +2659,14 @@ void Config_Add_SDL() {
 
 	Pstring = sdl_sec->Add_string("fullresolution",Property::Changeable::Always,"0x0");
 	Pstring->Set_help("What resolution to use for fullscreen: original, desktop or a fixed size (e.g. 1024x768).\n"
-	                  "  Using your monitor's native resolution with aspect=true might give the best results.\n"
-			  "  If you end up with small window on a large screen, try an output different from surface.");
+	                  "Using your monitor's native resolution with aspect=true might give the best results.\n"
+			  "If you end up with small window on a large screen, try an output different from surface."
+	                  "On Windows 10 with display scaling (Scale and layout) set to a value above 100%, it is recommended\n"
+	                  "to use a lower full/windowresolution, in order to avoid window size problems.");
 
 	Pstring = sdl_sec->Add_string("windowresolution",Property::Changeable::Always,"original");
 	Pstring->Set_help("Scale the window to this size IF the output device supports hardware scaling.\n"
-	                  "  (output=surface does not!)");
+	                  "(output=surface does not!)");
 
 	const char* outputs[] = {
 		"surface",
@@ -2681,7 +2719,7 @@ void Config_Add_SDL() {
 	Pmulti = sdl_sec->Add_multi("priority", Property::Changeable::Always, ",");
 	Pmulti->SetValue("higher,normal");
 	Pmulti->Set_help("Priority levels for dosbox. Second entry behind the comma is for when dosbox is not focused/minimized.\n"
-	                 "  pause is only valid for the second entry.");
+	                 "pause is only valid for the second entry.");
 
 	const char* actt[] = { "lowest", "lower", "normal", "higher", "highest", "pause", 0};
 	Pstring = Pmulti->GetSection()->Add_string("active",Property::Changeable::Always,"higher");
@@ -3105,9 +3143,11 @@ int main(int argc, char* argv[]) {
 
 	//Second parse -conf switches
 	while(control->cmdline->FindString("-conf",config_file,true)) {
-		if(!control->ParseConfigFile(config_file.c_str())) {
+		if (!control->ParseConfigFile(config_file.c_str())) {
 			// try to load it from the user directory
-			control->ParseConfigFile((config_path + config_file).c_str());
+			if (!control->ParseConfigFile((config_path + config_file).c_str())) {
+				LOG_MSG("CONFIG: Can't open specified config file: %s",config_file.c_str());
+			}
 		}
 	}
 	// if none found => parse localdir conf
