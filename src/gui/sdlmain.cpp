@@ -105,6 +105,7 @@ extern char** environ;
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include <winuser.h>
 #if C_DDRAW
 #include <ddraw.h>
 struct private_hwdata {
@@ -333,19 +334,19 @@ bool startup_state_capslock=false;
 
 #ifdef C_SDLGFX
 
-void GFX_SetTitle(Bit32s cycles,Bits frameskip,bool paused){
-	char title[200]={0};
-	static Bit32s internal_cycles=0;
-	static Bit32s internal_frameskip=0;
-	if(cycles != -1) internal_cycles = cycles;
-	if(frameskip != -1) internal_frameskip = frameskip;
+void GFX_SetTitle(Bit32s cycles,int frameskip,bool paused){
+	char title[200] = { 0 };
+	static Bit32s internal_cycles = 0;
+	static int internal_frameskip = 0;
+	if (cycles != -1) internal_cycles = cycles;
+	if (frameskip != -1) internal_frameskip = frameskip;
 	if(CPU_CycleAutoAdjust) {
 		sprintf(title,"DOSBox %s, CPU speed: max %3d%% cycles, Frameskip %2d, Program: %8s",VERSION,internal_cycles,internal_frameskip,RunningProgram);
 	} else {
 		sprintf(title,"DOSBox %s, CPU speed: %8d cycles, Frameskip %2d, Program: %8s",VERSION,internal_cycles,internal_frameskip,RunningProgram);
 	}
 
-	if(paused) strcat(title," PAUSED");
+	if (paused) strcat(title," PAUSED");
 #if SDL_VERSION_ATLEAST(2,0,0)
 	SDL_SetWindowTitle(sdl.window,title); // VERSION is gone...
 #else
@@ -1318,16 +1319,16 @@ dosurface:
 		glNewList(sdl.opengl.displaylist, GL_COMPILE);
 		glClear(GL_COLOR_BUFFER_BIT);
 		glBindTexture(GL_TEXTURE_2D, sdl.opengl.texture);
-		glBegin(GL_QUADS);
-		// lower left
-		glTexCoord2f(0,tex_height); glVertex2f(-1.0f,-1.0f);
-		// lower right
-		glTexCoord2f(tex_width,tex_height); glVertex2f(1.0f, -1.0f);
-		// upper right
-		glTexCoord2f(tex_width,0); glVertex2f(1.0f, 1.0f);
+
+		glBegin(GL_TRIANGLES);
 		// upper left
 		glTexCoord2f(0,0); glVertex2f(-1.0f, 1.0f);
+		// lower left
+		glTexCoord2f(0,tex_height*2); glVertex2f(-1.0f,-3.0f);
+		// upper right
+		glTexCoord2f(tex_width*2,0); glVertex2f(3.0f, 1.0f);
 		glEnd();
+
 		glEndList();
 		sdl.desktop.type=SCREEN_OPENGL;
 		retFlags = GFX_CAN_32 | GFX_SCALING;
@@ -2637,12 +2638,14 @@ static BOOL WINAPI ConsoleEventHandler(DWORD event) {
 static bool no_stdout = false;
 void GFX_ShowMsg(char const* format,...) {
 	char buf[512];
+
 	va_list msg;
 	va_start(msg,format);
-	vsprintf(buf,format,msg);
-        strcat(buf,"\n");
+	vsnprintf(buf,sizeof(buf),format,msg);
 	va_end(msg);
-	if(!no_stdout) printf("%s",buf); //Else buf is parsed again.
+
+	buf[sizeof(buf) - 1] = '\0';
+	if (!no_stdout) puts(buf); //Else buf is parsed again. (puts adds end of line)
 }
 
 #else  // !C_SDLGFX
@@ -2951,9 +2954,22 @@ static void erasemapperfile() {
 	exit(0);
 }
 
+void Disable_OS_Scaling() {
+#if defined (WIN32)
+	typedef BOOL (*function_set_dpi_pointer)();
+	function_set_dpi_pointer function_set_dpi;
+	function_set_dpi = (function_set_dpi_pointer) GetProcAddress(LoadLibrary("user32.dll"), "SetProcessDPIAware");
+	if (function_set_dpi) {
+		function_set_dpi();
+	}
+#endif
+}
+
 //extern void UI_Init(void);
 int main(int argc, char* argv[]) {
 	try {
+		Disable_OS_Scaling(); //Do this early on, maybe override it through some parameter.
+
 		CommandLine com_line(argc,argv);
 		Config myconf(&com_line);
 		control=&myconf;

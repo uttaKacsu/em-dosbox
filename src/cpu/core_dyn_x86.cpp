@@ -158,9 +158,7 @@ static struct {
 	Bit32u ea,tmpb,tmpd,stack,shift,newesp;
 } extra_regs;
 
-static void IllegalOption(const char* msg) {
-	E_Exit("DynCore: illegal option in %s",msg);
-}
+#define IllegalOption(msg) E_Exit("DYNX86: illegal option in " msg)
 
 #include "core_dyn_x86/cache.h" 
 
@@ -170,7 +168,7 @@ static struct {
 } core_dyn;
 
 #if defined(X86_DYNFPU_DH_ENABLED)
-static struct {
+static struct dyn_dh_fpu {
 	Bit16u		cw,host_cw;
 	bool		state_used;
 	// some fields expanded here for alignment purposes
