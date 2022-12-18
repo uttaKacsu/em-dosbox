@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir)/include
+AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_builddir)/include
 
 noinst_LIBRARIES = libgui.a
 libgui_a_SOURCES = sdlmain.cpp sdl_mapper.cpp dosbox_logo.h \

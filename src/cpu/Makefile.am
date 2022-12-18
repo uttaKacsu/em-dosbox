@@ -21,16 +21,17 @@ libextfun_a_CPPFLAGS = $(AM_CPPFLAGS) -DGET_X86_FUNCTIONS
 CXXPP = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
         $(AM_CPPFLAGS) $(CPPFLAGS)
 core_simple_fun.ii: libextfun.a
-	$(CXXPP) -DGET_X86_FUNCTIONS -E core_simple.cpp > $@
+	$(CXXPP) -DGET_X86_FUNCTIONS -E $(srcdir)/core_simple.cpp > $@
 core_normal_fun.ii: libextfun.a
-	$(CXXPP) -DGET_X86_FUNCTIONS -E core_normal.cpp > $@
+	$(CXXPP) -DGET_X86_FUNCTIONS -E $(srcdir)/core_normal.cpp > $@
 core_prefetch_fun.ii: libextfun.a
-	$(CXXPP) -DGET_X86_FUNCTIONS -E core_prefetch.cpp > $@
+	$(CXXPP) -DGET_X86_FUNCTIONS -E $(srcdir)/core_prefetch.cpp > $@
 
 # Convert preprocessed code to files that can be included to
 # build actual CPU core
 BUILT_SOURCES = $(FUN_INCLUDES)
 CLEANFILES = $(PREPROCESSED_FILES) $(FUN_INCLUDES)
-$(FUN_INCLUDES): extractfun.py $(PREPROCESSED_FILES)
-	python extractfun.py || rm -f $(FUN_INCLUDES)
+$(FUN_INCLUDES): $(srcdir)/extractfun.py $(PREPROCESSED_FILES)
+	python $< $(srcdir) || rm -f $@
+AM_CPPFLAGS += -I$(builddir)
 endif

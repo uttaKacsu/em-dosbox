@@ -381,10 +381,11 @@ def print_cpp(store, filename):
         store.output_arrays(f, 'x86_illegal')
 
 namer = FunctionNamer()
-namer.from_file('core_normal/prefix_none.h')
-namer.from_file('core_normal/prefix_66.h')
-namer.from_file('core_normal/prefix_0f.h')
-namer.from_file('core_normal/prefix_66_0f.h')
+srcdir = sys.argv[1] + '/' if len(sys.argv) > 1 else ''
+namer.from_file(srcdir + 'core_normal/prefix_none.h')
+namer.from_file(srcdir + 'core_normal/prefix_66.h')
+namer.from_file(srcdir + 'core_normal/prefix_0f.h')
+namer.from_file(srcdir + 'core_normal/prefix_66_0f.h')
 
 # TODO: More deduplication is possible by reading all functions into one
 # single store. However, that has to take into account the differing
